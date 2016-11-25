@@ -29,25 +29,23 @@ object QuotePersistence {
       collection.insertOne(doc).subscribe(new Observer[Completed] {
         override def onNext(result: Completed): Unit = {
           println("Inserted");
-          mongoClient.close()
         }
 
         override def onError(e: Throwable): Unit = {
           println("Failed", e);
-          mongoClient.close()
           p.failure(e)
         }
 
         override def onComplete(): Unit = {
           println("Completed");
-          mongoClient.close()
           p.success("Success!")
         }
       })
     }
 
-    Await.result(f, Duration(10, TimeUnit.SECONDS))
     f.foreach(x => println(x))
+    Await.result(f, Duration(10, TimeUnit.SECONDS))
+    mongoClient.close()
   }
 
   def main(args: Array[String]): Unit = {
