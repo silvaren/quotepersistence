@@ -23,7 +23,7 @@ object QuotePersistence {
   }
 
 
-  def persist(quotes: List[Quote], dbName: String, collection: String, insertCallback: Observer[Completed]): Unit = {
+  def persist(quotes: => Stream[Quote], dbName: String, collection: String, insertCallback: Observer[Completed]): Unit = {
     val mongoClient: MongoClient = MongoClient()
     val database = mongoClient.getDatabase(dbName)
     val dbCollection = database.getCollection(collection)
@@ -33,13 +33,22 @@ object QuotePersistence {
     mongoClient.close()
   }
 
-  def persistToDatabaseCollection(quotes: List[Quote], dbCollection: MongoCollection[MongoDocument],
-                                  insertCallback: Observer[Completed]): Unit = {
-    val quoteDocs: List[MongoDocument] = serializeQuotesAsMongoDocuments(quotes)
-    dbCollection.insertMany(quoteDocs).subscribe(insertCallback)
+  def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
+                      insertCallback: Observer[Completed]): Unit = {
+    val quoteDocsPiece = quoteDocs.take(1000)
+    if (quoteDocsPiece.size > 0) {
+      dbCollection.insertMany(quoteDocsPiece).subscribe(insertCallback)
+      insertInBatches(quoteDocs.drop(1000), dbCollection, insertCallback)
+    }
   }
 
-  def serializeQuotesAsMongoDocuments(quotes: List[Quote]): List[MongoDocument] = {
+  def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument],
+                                  insertCallback: Observer[Completed]): Unit = {
+    def quoteDocs = serializeQuotesAsMongoDocuments(quotes)
+    insertInBatches(quoteDocs, dbCollection, insertCallback)
+  }
+
+  def serializeQuotesAsMongoDocuments(quotes: => Stream[Quote]): Stream[MongoDocument] = {
     val gson = createGson()
     quotes.map(q => Document(gson.toJson(q)))
   }

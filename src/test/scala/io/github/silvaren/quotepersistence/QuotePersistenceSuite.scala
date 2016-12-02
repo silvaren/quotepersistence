@@ -56,7 +56,7 @@ class QuotePersistenceSuite extends FunSuite {
                           """
     val expectedMongoDocs = List(Document(stockQuoteJson), Document(optionQuoteJson))
 
-    val mongoDocs = QuotePersistence.serializeQuotesAsMongoDocuments(List(StockQuoteSample, OptionQuoteSample))
+    val mongoDocs = QuotePersistence.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
 
     assert(mongoDocs == expectedMongoDocs)
   }

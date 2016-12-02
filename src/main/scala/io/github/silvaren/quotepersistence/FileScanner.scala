@@ -25,7 +25,7 @@ object FileScanner {
   def parseAllFiles(dir: String, dbName: String, collection: String): Unit = {
     val fileList = getListOfFiles(dir)
     val fStreams = fileList.map(f => new FileInputStream(f))
-    val quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream))
+    def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream))
 
     val p = Promise[String]()
     val f = p.future
