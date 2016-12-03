@@ -9,6 +9,7 @@ import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
 object QuotePersistence {
 
+  val BatchSize: Int = 1000
   type MongoDocument = org.mongodb.scala.Document
 
   private[this] def createGson(): Gson = {
@@ -33,12 +34,13 @@ object QuotePersistence {
     mongoClient.close()
   }
 
+
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
                       insertCallback: Observer[Completed]): Unit = {
-    val quoteDocsPiece = quoteDocs.take(1000)
+    val quoteDocsPiece = quoteDocs.take(BatchSize)
     if (quoteDocsPiece.size > 0) {
       dbCollection.insertMany(quoteDocsPiece).subscribe(insertCallback)
-      insertInBatches(quoteDocs.drop(1000), dbCollection, insertCallback)
+      insertInBatches(quoteDocs.drop(BatchSize), dbCollection, insertCallback)
     }
   }
 
