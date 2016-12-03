@@ -1,7 +1,6 @@
 package io.github.silvaren.quotepersistence
 
 import java.io.{File, FileInputStream}
-import java.util
 import java.util.concurrent.TimeUnit
 
 import com.google.gson.GsonBuilder
@@ -15,8 +14,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 object FileScanner {
 
   final case class Parameters (var quoteDir: String, var dbName: String, var collection: String,
-                               var selectedMarkets: Array[Int]) {
-    def this() = this("", "", "", new Array[Int](0))
+                               var selectedMarkets: Array[Int], var selectedSymbols: Array[String]) {
+    def this() = this("", "", "", new Array[Int](0), new Array[String](0))
   }
 
   def getListOfFiles(dir: String): List[File] = {
@@ -28,10 +27,11 @@ object FileScanner {
     }
   }
 
-  def parseAllFiles(dir: String, dbName: String, collection: String, selectedMarketTypes: Set[Int]): Unit = {
+  def parseAllFiles(dir: String, dbName: String, collection: String, selectedMarketTypes: Set[Int],
+                    selectedSymbols: Set[String]): Unit = {
     val fileList = getListOfFiles(dir)
     val fStreams = fileList.map(f => new FileInputStream(f))
-    def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, selectedMarketTypes))
+    def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, selectedMarketTypes, selectedSymbols))
 
     val p = Promise[String]()
     val f = p.future
@@ -61,7 +61,7 @@ object FileScanner {
     val gson = new GsonBuilder().create()
     val parameters = gson.fromJson(lines, classOf[Parameters])
     parseAllFiles(parameters.quoteDir, parameters.dbName, parameters.collection,
-      parameters.selectedMarkets.toSet)
+      parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet)
   }
 
 }
