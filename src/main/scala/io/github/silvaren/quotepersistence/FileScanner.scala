@@ -13,9 +13,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object FileScanner {
 
-  final case class Parameters (var quoteDir: String, var dbName: String, var collection: String,
-                               var selectedMarkets: Array[Int], var selectedSymbols: Array[String]) {
-    def this() = this("", "", "", new Array[Int](0), new Array[String](0))
+  final case class DbConfig(var dbName: String, var collection: String) {
+    def this() = this("", "")
+  }
+
+  final case class Parameters(var quoteDir: String, var dbConfig: DbConfig, var selectedMarkets: Array[Int],
+                              var selectedSymbols: Array[String]) {
+    def this() = this("", new DbConfig("", ""), new Array[Int](0), new Array[String](0))
   }
 
   def getListOfFiles(dir: String): List[File] = {
@@ -27,11 +31,11 @@ object FileScanner {
     }
   }
 
-  def parseAllFiles(dir: String, dbName: String, collection: String, selectedMarketTypes: Set[Int],
-                    selectedSymbols: Set[String]): Unit = {
-    val fileList = getListOfFiles(dir)
+  def parseAllFiles(parameters: Parameters): Unit = {
+    val fileList = getListOfFiles(parameters.quoteDir)
     val fStreams = fileList.map(f => new FileInputStream(f))
-    def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, selectedMarketTypes, selectedSymbols))
+    def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, parameters.selectedMarkets.toSet,
+      parameters.selectedSymbols.toSet))
 
     val p = Promise[String]()
     val f = p.future
@@ -50,7 +54,7 @@ object FileScanner {
         p.success("Success!")
       }
     }
-    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, dbName, collection, callback))
+    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, callback, parameters.dbConfig))
     f.foreach(x => println(x))
     Await.result(f, Duration(10, TimeUnit.SECONDS))
   }
@@ -60,8 +64,7 @@ object FileScanner {
     val lines = try source.mkString finally source.close()
     val gson = new GsonBuilder().create()
     val parameters = gson.fromJson(lines, classOf[Parameters])
-    parseAllFiles(parameters.quoteDir, parameters.dbName, parameters.collection,
-      parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet)
+    parseAllFiles(parameters)
   }
 
 }

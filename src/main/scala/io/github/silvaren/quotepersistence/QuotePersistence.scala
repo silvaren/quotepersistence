@@ -4,6 +4,7 @@ import com.fatboyindustrial.gsonjodatime.Converters
 import com.google.gson.stream.{JsonReader, JsonWriter}
 import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
 import io.github.silvaren.quoteparser.Quote
+import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
@@ -24,16 +25,15 @@ object QuotePersistence {
   }
 
 
-  def persist(quotes: => Stream[Quote], dbName: String, collection: String, insertCallback: Observer[Completed]): Unit = {
+  def persist(quotes: => Stream[Quote], insertCallback: Observer[Completed], dbConfig: DbConfig): Unit = {
     val mongoClient: MongoClient = MongoClient()
-    val database = mongoClient.getDatabase(dbName)
-    val dbCollection = database.getCollection(collection)
+    val database = mongoClient.getDatabase(dbConfig.dbName)
+    val dbCollection = database.getCollection(dbConfig.collection)
 
     persistToDatabaseCollection(quotes, dbCollection, insertCallback)
 
     mongoClient.close()
   }
-
 
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
                       insertCallback: Observer[Completed]): Unit = {
