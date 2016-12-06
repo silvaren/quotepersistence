@@ -54,9 +54,11 @@ object FileScanner {
         p.success("Success!")
       }
     }
-    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, callback, parameters.dbConfig))
+    val quoteDb = QuotePersistence.connectToQuoteDb(parameters.dbConfig)
+    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, callback, quoteDb))
     f.foreach(x => println(x))
     Await.result(f, Duration(10, TimeUnit.SECONDS))
+    QuotePersistence.disconnectFromQuoteDb(quoteDb)
   }
 
   def main(args: Array[String]): Unit = {

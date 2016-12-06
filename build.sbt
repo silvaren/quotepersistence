@@ -1,5 +1,7 @@
 name := "quotepersistence"
 
+organization := "io.github.silvaren"
+
 version := "1.0"
 
 scalaVersion := "2.11.0"

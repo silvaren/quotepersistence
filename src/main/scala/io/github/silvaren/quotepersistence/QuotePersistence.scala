@@ -5,13 +5,26 @@ import com.google.gson.stream.{JsonReader, JsonWriter}
 import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
 import io.github.silvaren.quoteparser.Quote
 import io.github.silvaren.quotepersistence.FileScanner.DbConfig
+import org.joda.time.DateTime
 import org.mongodb.scala.bson.collection.immutable.Document
+import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
 object QuotePersistence {
 
   val BatchSize: Int = 1000
   type MongoDocument = org.mongodb.scala.Document
+
+  case class QuoteDb(mongoClient: MongoClient, collection: MongoCollection[MongoDocument])
+
+  def connectToQuoteDb(dbConfig: DbConfig): QuoteDb = {
+    val mongoClient: MongoClient = MongoClient()
+    val database = mongoClient.getDatabase(dbConfig.dbName)
+    val dbCollection = database.getCollection(dbConfig.collection)
+    QuoteDb(mongoClient, dbCollection)
+  }
+
+  def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
   private[this] def createGson(): Gson = {
     val gsonBuilder = Converters.registerDateTime(new GsonBuilder())
@@ -24,15 +37,17 @@ object QuotePersistence {
     gsonBuilder.registerTypeAdapter(classOf[BigDecimal], bigDecimalAdapter).create()
   }
 
+  def persist(quotes: => Stream[Quote], insertCallback: Observer[Completed], quoteDb: QuoteDb): Unit = {
+    persistToDatabaseCollection(quotes, quoteDb.collection, insertCallback)
+  }
 
-  def persist(quotes: => Stream[Quote], insertCallback: Observer[Completed], dbConfig: DbConfig): Unit = {
-    val mongoClient: MongoClient = MongoClient()
-    val database = mongoClient.getDatabase(dbConfig.dbName)
-    val dbCollection = database.getCollection(dbConfig.collection)
-
-    persistToDatabaseCollection(quotes, dbCollection, insertCallback)
-
-    mongoClient.close()
+  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb) = {
+    val quotes = quoteDb.collection.find(gt("date", createGson().toJson(initialDate))).subscribe (
+      new Observer[Document] {
+        override def onNext(result: Document): Unit = println(result.toJson())
+        override def onError(e: Throwable): Unit = println("Failed" + e.getMessage)
+        override def onComplete(): Unit = println("Completed")
+      })
   }
 
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
