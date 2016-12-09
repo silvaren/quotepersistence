@@ -66,7 +66,9 @@ object FileScanner {
     val lines = try source.mkString finally source.close()
     val gson = new GsonBuilder().create()
     val parameters = gson.fromJson(lines, classOf[Parameters])
-    parseAllFiles(parameters)
+//    parseAllFiles(parameters)
+//    QuotePersistence.retrieveQuotes("PETR4", )
   }
+
 
 }

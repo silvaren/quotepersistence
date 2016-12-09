@@ -41,8 +41,11 @@ object QuotePersistence {
     persistToDatabaseCollection(quotes, quoteDb.collection, insertCallback)
   }
 
+  def serializeDate(date: DateTime): String =
+    createGson().toJson(date).replace("\"", "")
+
   def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb) = {
-    val quotes = quoteDb.collection.find(gt("date", createGson().toJson(initialDate))).subscribe (
+    val quotes = quoteDb.collection.find(gt("date", serializeDate(initialDate))).subscribe (
       new Observer[Document] {
         override def onNext(result: Document): Unit = println(result.toJson())
         override def onError(e: Throwable): Unit = println("Failed" + e.getMessage)
