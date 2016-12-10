@@ -1,9 +1,6 @@
 package io.github.silvaren.quotepersistence
 
-import com.fatboyindustrial.gsonjodatime.Converters
-import com.google.gson.stream.{JsonReader, JsonWriter}
-import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
-import io.github.silvaren.quoteparser.{OptionQuote, Quote, StockQuote}
+import io.github.silvaren.quoteparser.Quote
 import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.joda.time.DateTime
 import org.mongodb.scala.bson.collection.immutable.Document
@@ -28,36 +25,17 @@ object QuotePersistence {
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
-  private[this] lazy val gson: Gson = {
-    val gsonBuilder = Converters.registerDateTime(new GsonBuilder())
-    val bigDecimalAdapter = new TypeAdapter[BigDecimal] {
-      override def write(out: JsonWriter, value: BigDecimal): Unit = {
-        out.jsonValue(value.toString)
-      }
-      override def read(in: JsonReader): BigDecimal = BigDecimal(in.nextString())
-    }
-    gsonBuilder.registerTypeAdapter(classOf[BigDecimal], bigDecimalAdapter).create()
-  }
-
   def persist(quotes: => Stream[Quote], insertCallback: Observer[Completed], quoteDb: QuoteDb): Unit = {
     persistToDatabaseCollection(quotes, quoteDb.collection, insertCallback)
   }
 
-  def serializeDate(date: DateTime): String =
-    gson.toJson(date).replace("\"", "")
-
-  def mapToQuoteObj(result: Document): Quote =
-    if (result.contains("exerciseDate"))
-      gson.fromJson(result.toJson(), classOf[OptionQuote])
-    else
-      gson.fromJson(result.toJson(), classOf[StockQuote])
-
   def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Promise[Seq[Quote]] = {
     val p = Promise[Seq[Quote]]()
     val quoteSeq = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
-    quoteDb.collection.find(and(equal("symbol", symbol),gt("date", serializeDate(initialDate)))).subscribe (
+    quoteDb.collection.find(and(equal("symbol", symbol),gt("date",
+      Serialization.serializeDate(initialDate)))).subscribe (
       new Observer[Document] {
-        override def onNext(result: Document): Unit = quoteSeq += mapToQuoteObj(result)
+        override def onNext(result: Document): Unit = quoteSeq += Serialization.mapToQuoteObj(result)
         override def onError(e: Throwable): Unit = p.failure(e)
         override def onComplete(): Unit = p.success(quoteSeq)
       })
@@ -75,11 +53,7 @@ object QuotePersistence {
 
   def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument],
                                   insertCallback: Observer[Completed]): Unit = {
-    def quoteDocs = serializeQuotesAsMongoDocuments(quotes)
+    def quoteDocs = Serialization.serializeQuotesAsMongoDocuments(quotes)
     insertInBatches(quoteDocs, dbCollection, insertCallback)
-  }
-
-  def serializeQuotesAsMongoDocuments(quotes: => Stream[Quote]): Stream[MongoDocument] = {
-    quotes.map(q => Document(gson.toJson(q)))
   }
 }
