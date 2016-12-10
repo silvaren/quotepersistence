@@ -1,25 +1,18 @@
 package io.github.silvaren.quotepersistence
 
-import java.util.concurrent.TimeUnit
-
 import com.fatboyindustrial.gsonjodatime.Converters
 import com.google.gson.stream.{JsonReader, JsonWriter}
 import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
-import io.github.silvaren.quoteparser.Quote
+import io.github.silvaren.quoteparser.{OptionQuote, Quote, StockQuote}
 import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.joda.time.DateTime
-import org.joda.time.format.ISODateTimeFormat
-import org.mongodb.scala.bson.BsonDateTime
 import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Promise}
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Promise
 
 object QuotePersistence {
-
 
   val BatchSize: Int = 1000
   type MongoDocument = org.mongodb.scala.Document
@@ -35,7 +28,7 @@ object QuotePersistence {
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
-  private[this] def createGson(): Gson = {
+  private[this] lazy val gson: Gson = {
     val gsonBuilder = Converters.registerDateTime(new GsonBuilder())
     val bigDecimalAdapter = new TypeAdapter[BigDecimal] {
       override def write(out: JsonWriter, value: BigDecimal): Unit = {
@@ -51,25 +44,24 @@ object QuotePersistence {
   }
 
   def serializeDate(date: DateTime): String =
-    createGson().toJson(date).replace("\"", "")
+    gson.toJson(date).replace("\"", "")
 
-  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb) = {
-    val p = Promise[String]()
-    val f = p.future
-    val quotes = quoteDb.collection.find(and(equal("symbol", symbol),gt("date", serializeDate(initialDate)))).subscribe (
+  def mapToQuoteObj(result: Document): Quote =
+    if (result.contains("exerciseDate"))
+      gson.fromJson(result.toJson(), classOf[OptionQuote])
+    else
+      gson.fromJson(result.toJson(), classOf[StockQuote])
+
+  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Promise[Seq[Quote]] = {
+    val p = Promise[Seq[Quote]]()
+    val quoteSeq = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
+    quoteDb.collection.find(and(equal("symbol", symbol),gt("date", serializeDate(initialDate)))).subscribe (
       new Observer[Document] {
-        override def onNext(result: Document): Unit = println(result.toJson())
-        override def onError(e: Throwable): Unit = {
-          println("Failed" + e.getMessage)
-          p.failure(e)
-        }
-        override def onComplete(): Unit = {
-          println("Completed")
-          p.success("Success!")
-        }
+        override def onNext(result: Document): Unit = quoteSeq += mapToQuoteObj(result)
+        override def onError(e: Throwable): Unit = p.failure(e)
+        override def onComplete(): Unit = p.success(quoteSeq)
       })
-    f.foreach(x => println(x))
-    Await.result(f, Duration(10, TimeUnit.SECONDS))
+    p
   }
 
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
@@ -88,7 +80,6 @@ object QuotePersistence {
   }
 
   def serializeQuotesAsMongoDocuments(quotes: => Stream[Quote]): Stream[MongoDocument] = {
-    val gson = createGson()
     quotes.map(q => Document(gson.toJson(q)))
   }
 }

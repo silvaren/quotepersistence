@@ -5,11 +5,12 @@ import java.util.concurrent.TimeUnit
 
 import com.google.gson.GsonBuilder
 import io.github.silvaren.quoteparser.QuoteParser
+import org.joda.time.{DateTime, DateTimeZone}
 import org.mongodb.scala.{Completed, Observer}
 
-import scala.concurrent.{Await, Promise}
-import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Promise}
 
 object FileScanner {
 
@@ -66,9 +67,7 @@ object FileScanner {
     val lines = try source.mkString finally source.close()
     val gson = new GsonBuilder().create()
     val parameters = gson.fromJson(lines, classOf[Parameters])
-//    parseAllFiles(parameters)
-//    QuotePersistence.retrieveQuotes("PETR4", )
+    parseAllFiles(parameters)
   }
-
 
 }
