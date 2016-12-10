@@ -1,16 +1,25 @@
 package io.github.silvaren.quotepersistence
 
+import java.util.concurrent.TimeUnit
+
 import com.fatboyindustrial.gsonjodatime.Converters
 import com.google.gson.stream.{JsonReader, JsonWriter}
 import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
 import io.github.silvaren.quoteparser.Quote
 import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.joda.time.DateTime
+import org.joda.time.format.ISODateTimeFormat
+import org.mongodb.scala.bson.BsonDateTime
 import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Promise}
+import scala.concurrent.ExecutionContext.Implicits.global
+
 object QuotePersistence {
+
 
   val BatchSize: Int = 1000
   type MongoDocument = org.mongodb.scala.Document
@@ -45,12 +54,22 @@ object QuotePersistence {
     createGson().toJson(date).replace("\"", "")
 
   def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb) = {
-    val quotes = quoteDb.collection.find(gt("date", serializeDate(initialDate))).subscribe (
+    val p = Promise[String]()
+    val f = p.future
+    val quotes = quoteDb.collection.find(and(equal("symbol", symbol),gt("date", serializeDate(initialDate)))).subscribe (
       new Observer[Document] {
         override def onNext(result: Document): Unit = println(result.toJson())
-        override def onError(e: Throwable): Unit = println("Failed" + e.getMessage)
-        override def onComplete(): Unit = println("Completed")
+        override def onError(e: Throwable): Unit = {
+          println("Failed" + e.getMessage)
+          p.failure(e)
+        }
+        override def onComplete(): Unit = {
+          println("Completed")
+          p.success("Success!")
+        }
       })
+    f.foreach(x => println(x))
+    Await.result(f, Duration(10, TimeUnit.SECONDS))
   }
 
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
