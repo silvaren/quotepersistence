@@ -17,6 +17,7 @@ libraryDependencies += "com.fatboyindustrial.gson-jodatime-serialisers" % "gson-
 
 libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test->default"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+libraryDependencies += "de.flapdoodle.embed" % "de.flapdoodle.embed.mongo" % "1.50.3" % "test"
 
 
 

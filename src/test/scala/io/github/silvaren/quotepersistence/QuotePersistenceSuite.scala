@@ -1,10 +1,15 @@
 package io.github.silvaren.quotepersistence
 
+import de.flapdoodle.embed.mongo.config.{MongodConfigBuilder, Net}
+import de.flapdoodle.embed.mongo.distribution.Version
+import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
+import de.flapdoodle.embed.process.runtime.Network
 import io.github.silvaren.quoteparser.{OptionQuote, StockQuote}
 import org.joda.time.{DateTime, DateTimeZone}
 import org.junit.runner.RunWith
+import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.collection.immutable.Document
-import org.scalatest.FunSuite
+import org.scalatest.{FunSuite, Outcome}
 import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
@@ -26,6 +31,30 @@ class QuotePersistenceSuite extends FunSuite {
       .withMinuteOfHour(0)
       .withSecondOfMinute(0)
       .withMillisOfSecond(0)
+  }
+
+  private[this] val starter = MongodStarter.getDefaultInstance()
+
+  var _mongodExe: Option[MongodExecutable] = None
+  var _mongod: Option[MongodProcess] = None
+  var _mongo: Option[MongoClient] = None
+
+  override def withFixture(test: NoArgTest): Outcome = {
+    _mongodExe = Some(starter.prepare(new MongodConfigBuilder()
+      .version(Version.Main.PRODUCTION)
+      .net(new Net(12345, Network.localhostIsIPv6()))
+      .build()))
+    _mongod = _mongodExe.map(_.start())
+
+    _mongo = Some(MongoClient())
+
+    try {
+      test() // invoke the test function
+    }
+    finally {
+      _mongod.foreach(_.stop())
+      _mongodExe.foreach(_.stop())
+    }
   }
 
   test("persist correctly serializes quotes as mongo documents") {
