@@ -56,7 +56,7 @@ class QuotePersistenceSuite extends FunSuite {
                           """
     val expectedMongoDocs = List(Document(stockQuoteJson), Document(optionQuoteJson))
 
-    val mongoDocs = QuotePersistence.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
+    val mongoDocs = Serialization.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
 
     assert(mongoDocs == expectedMongoDocs)
   }
@@ -64,7 +64,7 @@ class QuotePersistenceSuite extends FunSuite {
   test("correctly serializes initial date") {
     val initialDate = buildDate(2015,10,9)
 
-    val serializedDate = QuotePersistence.serializeDate(initialDate)
+    val serializedDate = Serialization.serializeDate(initialDate)
 
     assert(serializedDate == "2015-10-09T18:00:00.000-03:00")
   }
