@@ -25,7 +25,7 @@ object QuotePersistence {
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
-  def persist(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Promise[String]] = {
+  def insertQuotes(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Promise[String]] = {
     persistToDatabaseCollection(quotes, quoteDb.collection)
   }
 
@@ -42,7 +42,7 @@ object QuotePersistence {
     p
   }
 
-  def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
+  private[this] def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
                       acc: Seq[Promise[String]]): Seq[Promise[String]] = {
     val quoteDocsPiece = quoteDocs.take(BatchSize)
     if (quoteDocsPiece.size > 0) {
@@ -63,7 +63,7 @@ object QuotePersistence {
       acc
   }
 
-  def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument]):
+  private[this] def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument]):
   Seq[Promise[String]] = {
     def quoteDocs = Serialization.serializeQuotesAsMongoDocuments(quotes)
     insertInBatches(quoteDocs, dbCollection, Seq())

@@ -63,7 +63,7 @@ class QuotePersistenceSuite extends AsyncFunSuite {
     val dbConfig = DbConfig(12345, "quotedbtest", "test")
     val quoteDb = QuotePersistence.connectToQuoteDb(dbConfig)
     val quoteSeqs = Seq(Stream(StockQuoteSample, OptionQuoteSample))
-    val insertPromises = quoteSeqs.flatMap(quotes => QuotePersistence.persist(quotes, quoteDb))
+    val insertPromises = quoteSeqs.flatMap(quotes => QuotePersistence.insertQuotes(quotes, quoteDb))
     val insertFutures = insertPromises.map( p => p.future)
     val insertSequence = Future.sequence(insertFutures)
     insertSequence.flatMap( _ => {println("querying...");QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), quoteDb).future})
