@@ -14,13 +14,13 @@ import scala.concurrent.{Await, Promise}
 
 object FileScanner {
 
-  final case class DbConfig(var dbName: String, var collection: String) {
-    def this() = this("", "")
+  final case class DbConfig(var port: Int, var dbName: String, var collection: String) {
+    def this() = this(0, "", "")
   }
 
   final case class Parameters(var quoteDir: String, var dbConfig: DbConfig, var selectedMarkets: Array[Int],
                               var selectedSymbols: Array[String]) {
-    def this() = this("", new DbConfig("", ""), new Array[Int](0), new Array[String](0))
+    def this() = this("", new DbConfig(0, "", ""), new Array[Int](0), new Array[String](0))
   }
 
   def getListOfFiles(dir: String): List[File] = {
@@ -38,27 +38,10 @@ object FileScanner {
     def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, parameters.selectedMarkets.toSet,
       parameters.selectedSymbols.toSet))
 
-    val p = Promise[String]()
-    val f = p.future
-    val callback = new Observer[Completed] {
-      override def onNext(result: Completed): Unit = {
-        println("Inserted")
-      }
-
-      override def onError(e: Throwable): Unit = {
-        println("Failed", e)
-        p.failure(e)
-      }
-
-      override def onComplete(): Unit = {
-        println("Completed")
-        p.success("Success!")
-      }
-    }
     val quoteDb = QuotePersistence.connectToQuoteDb(parameters.dbConfig)
-    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, callback, quoteDb))
-    f.foreach(x => println(x))
-    Await.result(f, Duration(10, TimeUnit.SECONDS))
+    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, quoteDb))
+//    f.foreach(x => println(x))
+//    Await.result(f, Duration(10, TimeUnit.SECONDS))
     QuotePersistence.disconnectFromQuoteDb(quoteDb)
   }
 

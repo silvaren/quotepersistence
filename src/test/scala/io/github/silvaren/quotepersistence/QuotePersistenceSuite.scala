@@ -1,19 +1,27 @@
 package io.github.silvaren.quotepersistence
 
+import java.util.concurrent.TimeUnit
+
 import de.flapdoodle.embed.mongo.config.{MongodConfigBuilder, Net}
 import de.flapdoodle.embed.mongo.distribution.Version
 import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
 import de.flapdoodle.embed.process.runtime.Network
 import io.github.silvaren.quoteparser.{OptionQuote, StockQuote}
+import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.joda.time.{DateTime, DateTimeZone}
 import org.junit.runner.RunWith
-import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.collection.immutable.Document
-import org.scalatest.{FunSuite, Outcome}
+import org.mongodb.scala.{Completed, MongoClient, Observer}
 import org.scalatest.junit.JUnitRunner
+import org.scalatest.{AsyncFunSuite, FutureOutcome}
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future, Promise}
+import scala.util.{Failure, Success}
 
 @RunWith(classOf[JUnitRunner])
-class QuotePersistenceSuite extends FunSuite {
+class QuotePersistenceSuite extends AsyncFunSuite {
 
   val StockQuoteSample = StockQuote("PETR4", buildDate(2015, 1, 2), BigDecimal("9.99"), BigDecimal("9.99"),
     BigDecimal("9.36"), BigDecimal("9.36"), 48837200, 39738)
@@ -39,63 +47,74 @@ class QuotePersistenceSuite extends FunSuite {
   var _mongod: Option[MongodProcess] = None
   var _mongo: Option[MongoClient] = None
 
-  override def withFixture(test: NoArgTest): Outcome = {
+  override def withFixture(test: NoArgAsyncTest): FutureOutcome = {
     _mongodExe = Some(starter.prepare(new MongodConfigBuilder()
       .version(Version.Main.PRODUCTION)
       .net(new Net(12345, Network.localhostIsIPv6()))
       .build()))
     _mongod = _mongodExe.map(_.start())
 
-    _mongo = Some(MongoClient())
+    _mongo = Some(MongoClient("mongodb://localhost:12345"))
 
-    try {
-      test() // invoke the test function
-    }
-    finally {
+    complete {
+      super.withFixture(test) // invoke the test function
+    } lastly {
       _mongod.foreach(_.stop())
       _mongodExe.foreach(_.stop())
     }
   }
 
-  test("persist correctly serializes quotes as mongo documents") {
-    val stockQuoteJson = """
-                           {
-                           "symbol":"PETR4",
-                           "date":"2015-01-02T18:00:00.000-02:00",
-                           "openPrice":9.99,
-                           "highPrice":9.99,
-                           "lowPrice":9.36,
-                           "closePrice":9.36,
-                           "tradedVolume":48837200,
-                           "trades":39738
-                           }
-                         """
-    val optionQuoteJson = """
-                           {
-                           "symbol":"PETRA10",
-                           "date":"2015-01-08T18:00:00.000-02:00",
-                           "openPrice":0.57,
-                           "highPrice":0.97,
-                           "lowPrice":0.50,
-                           "closePrice":0.82,
-                           "tradedVolume":44492200,
-                           "trades":14291,
-                           "strikePrice":8.61,
-                           "exerciseDate":"2015-01-19T18:00:00.000-02:00"}
-                          """
-    val expectedMongoDocs = List(Document(stockQuoteJson), Document(optionQuoteJson))
-
-    val mongoDocs = Serialization.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
-
-    assert(mongoDocs == expectedMongoDocs)
+  test("inserts quotes to mongo") {
+    val dbConfig = DbConfig(12345, "quotedbtest", "test")
+    val quoteDb = QuotePersistence.connectToQuoteDb(dbConfig)
+    val quoteSeqs = Seq(Stream(StockQuoteSample, OptionQuoteSample))
+    val insertPromises = quoteSeqs.flatMap(quotes => QuotePersistence.persist(quotes, quoteDb))
+    val insertFutures = insertPromises.map( p => p.future)
+    val insertSequence = Future.sequence(insertFutures)
+    insertSequence.flatMap( _ => {println("querying...");QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), quoteDb).future})
+      .flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))
   }
 
-  test("correctly serializes initial date") {
-    val initialDate = buildDate(2015,10,9)
 
-    val serializedDate = Serialization.serializeDate(initialDate)
-
-    assert(serializedDate == "2015-10-09T18:00:00.000-03:00")
-  }
+//  test("persist correctly serializes quotes as mongo documents") {
+//    val stockQuoteJson = """
+//                           {
+//                           "symbol":"PETR4",
+//                           "date":"2015-01-02T18:00:00.000-02:00",
+//                           "openPrice":9.99,
+//                           "highPrice":9.99,
+//                           "lowPrice":9.36,
+//                           "closePrice":9.36,
+//                           "tradedVolume":48837200,
+//                           "trades":39738
+//                           }
+//                         """
+//    val optionQuoteJson = """
+//                           {
+//                           "symbol":"PETRA10",
+//                           "date":"2015-01-08T18:00:00.000-02:00",
+//                           "openPrice":0.57,
+//                           "highPrice":0.97,
+//                           "lowPrice":0.50,
+//                           "closePrice":0.82,
+//                           "tradedVolume":44492200,
+//                           "trades":14291,
+//                           "strikePrice":8.61,
+//                           "exerciseDate":"2015-01-19T18:00:00.000-02:00"}
+//                          """
+//    val expectedMongoDocs = List(Document(stockQuoteJson), Document(optionQuoteJson))
+//
+//    val mongoDocs = Serialization.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
+//
+//    assert(mongoDocs == expectedMongoDocs)
+//  }
+//
+//  test("correctly serializes initial date") {
+//    val initialDate = buildDate(2015,10,9)
+//
+//    val serializedDate = Serialization.serializeDate(initialDate)
+//
+//    assert(serializedDate == "2015-10-09T18:00:00.000-03:00")
+//  }
 
 }

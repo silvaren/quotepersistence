@@ -17,7 +17,7 @@ object QuotePersistence {
   case class QuoteDb(mongoClient: MongoClient, collection: MongoCollection[MongoDocument])
 
   def connectToQuoteDb(dbConfig: DbConfig): QuoteDb = {
-    val mongoClient: MongoClient = MongoClient()
+    val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:${dbConfig.port}")
     val database = mongoClient.getDatabase(dbConfig.dbName)
     val dbCollection = database.getCollection(dbConfig.collection)
     QuoteDb(mongoClient, dbCollection)
@@ -25,8 +25,8 @@ object QuotePersistence {
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
-  def persist(quotes: => Stream[Quote], insertCallback: Observer[Completed], quoteDb: QuoteDb): Unit = {
-    persistToDatabaseCollection(quotes, quoteDb.collection, insertCallback)
+  def persist(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Promise[String]] = {
+    persistToDatabaseCollection(quotes, quoteDb.collection)
   }
 
   def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Promise[Seq[Quote]] = {
@@ -37,23 +37,35 @@ object QuotePersistence {
       new Observer[Document] {
         override def onNext(result: Document): Unit = quoteSeq += Serialization.mapToQuoteObj(result)
         override def onError(e: Throwable): Unit = p.failure(e)
-        override def onComplete(): Unit = p.success(quoteSeq)
+        override def onComplete(): Unit = p.success(quoteSeq.toSeq)
       })
     p
   }
 
   def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
-                      insertCallback: Observer[Completed]): Unit = {
+                      acc: Seq[Promise[String]]): Seq[Promise[String]] = {
     val quoteDocsPiece = quoteDocs.take(BatchSize)
     if (quoteDocsPiece.size > 0) {
-      dbCollection.insertMany(quoteDocsPiece).subscribe(insertCallback)
-      insertInBatches(quoteDocs.drop(BatchSize), dbCollection, insertCallback)
-    }
+      val p = Promise[String]()
+      dbCollection.insertMany(quoteDocsPiece).subscribe(new Observer[Completed] {
+        override def onNext(result: Completed): Unit = println("Inserted")
+        override def onError(e: Throwable): Unit = {
+          println("Failed", e)
+          p.failure(e)
+        }
+        override def onComplete(): Unit = {
+          println("Completed")
+          p.success("Success!")
+        }
+      })
+      insertInBatches(quoteDocs.drop(BatchSize), dbCollection, p +: acc)
+    } else
+      acc
   }
 
-  def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument],
-                                  insertCallback: Observer[Completed]): Unit = {
+  def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument]):
+  Seq[Promise[String]] = {
     def quoteDocs = Serialization.serializeQuotesAsMongoDocuments(quotes)
-    insertInBatches(quoteDocs, dbCollection, insertCallback)
+    insertInBatches(quoteDocs, dbCollection, Seq())
   }
 }
