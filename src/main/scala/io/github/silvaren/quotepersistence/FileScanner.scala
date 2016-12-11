@@ -1,16 +1,13 @@
 package io.github.silvaren.quotepersistence
 
 import java.io.{File, FileInputStream}
-import java.util.concurrent.TimeUnit
 
 import com.google.gson.GsonBuilder
 import io.github.silvaren.quoteparser.QuoteParser
-import org.joda.time.{DateTime, DateTimeZone}
-import org.mongodb.scala.{Completed, Observer}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.{Await, Future}
 
 object FileScanner {
 
@@ -37,11 +34,11 @@ object FileScanner {
     val fStreams = fileList.map(f => new FileInputStream(f))
     def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, parameters.selectedMarkets.toSet,
       parameters.selectedSymbols.toSet))
-
     val quoteDb = QuotePersistence.connectToQuoteDb(parameters.dbConfig)
-    quoteSeqs.foreach( quotes => QuotePersistence.persist(quotes, quoteDb))
-//    f.foreach(x => println(x))
-//    Await.result(f, Duration(10, TimeUnit.SECONDS))
+    val insertPromises = quoteSeqs.flatMap(quotes => QuotePersistence.persist(quotes, quoteDb))
+    val insertFutures = insertPromises.map( p => p.future)
+    val insertSequence = Future.sequence(insertFutures)
+    Await.result(insertSequence, Duration.Inf)
     QuotePersistence.disconnectFromQuoteDb(quoteDb)
   }
 
