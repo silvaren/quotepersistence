@@ -49,14 +49,8 @@ object QuotePersistence {
       val p = Promise[String]()
       dbCollection.insertMany(quoteDocsPiece).subscribe(new Observer[Completed] {
         override def onNext(result: Completed): Unit = println("Inserted")
-        override def onError(e: Throwable): Unit = {
-          println("Failed", e)
-          p.failure(e)
-        }
-        override def onComplete(): Unit = {
-          println("Completed")
-          p.success("Success!")
-        }
+        override def onError(e: Throwable): Unit = p.failure(e)
+        override def onComplete(): Unit = p.success("Success!")
       })
       insertInBatches(quoteDocs.drop(BatchSize), dbCollection, p +: acc)
     } else

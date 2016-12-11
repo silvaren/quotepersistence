@@ -66,8 +66,10 @@ class QuotePersistenceSuite extends AsyncFunSuite {
     val insertPromises = quoteSeqs.flatMap(quotes => QuotePersistence.insertQuotes(quotes, quoteDb))
     val insertFutures = insertPromises.map( p => p.future)
     val insertSequence = Future.sequence(insertFutures)
-    insertSequence.flatMap( _ => {println("querying...");QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), quoteDb).future})
-      .flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))
+    insertSequence.flatMap( _ => {
+      println("querying...");
+      QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), quoteDb).future
+    }).flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))
   }
 
 }
