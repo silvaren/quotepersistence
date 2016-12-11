@@ -1,7 +1,5 @@
 package io.github.silvaren.quotepersistence
 
-import java.util.concurrent.TimeUnit
-
 import de.flapdoodle.embed.mongo.config.{MongodConfigBuilder, Net}
 import de.flapdoodle.embed.mongo.distribution.Version
 import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
@@ -10,15 +8,12 @@ import io.github.silvaren.quoteparser.{OptionQuote, StockQuote}
 import io.github.silvaren.quotepersistence.FileScanner.DbConfig
 import org.joda.time.{DateTime, DateTimeZone}
 import org.junit.runner.RunWith
-import org.mongodb.scala.bson.collection.immutable.Document
-import org.mongodb.scala.{Completed, MongoClient, Observer}
+import org.mongodb.scala.MongoClient
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{AsyncFunSuite, FutureOutcome}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Success}
+import scala.concurrent.Future
 
 @RunWith(classOf[JUnitRunner])
 class QuotePersistenceSuite extends AsyncFunSuite {
@@ -64,7 +59,7 @@ class QuotePersistenceSuite extends AsyncFunSuite {
     }
   }
 
-  test("inserts quotes to mongo") {
+  test("inserts and retrieves quotes to mongo") {
     val dbConfig = DbConfig(12345, "quotedbtest", "test")
     val quoteDb = QuotePersistence.connectToQuoteDb(dbConfig)
     val quoteSeqs = Seq(Stream(StockQuoteSample, OptionQuoteSample))
@@ -74,47 +69,5 @@ class QuotePersistenceSuite extends AsyncFunSuite {
     insertSequence.flatMap( _ => {println("querying...");QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), quoteDb).future})
       .flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))
   }
-
-
-//  test("persist correctly serializes quotes as mongo documents") {
-//    val stockQuoteJson = """
-//                           {
-//                           "symbol":"PETR4",
-//                           "date":"2015-01-02T18:00:00.000-02:00",
-//                           "openPrice":9.99,
-//                           "highPrice":9.99,
-//                           "lowPrice":9.36,
-//                           "closePrice":9.36,
-//                           "tradedVolume":48837200,
-//                           "trades":39738
-//                           }
-//                         """
-//    val optionQuoteJson = """
-//                           {
-//                           "symbol":"PETRA10",
-//                           "date":"2015-01-08T18:00:00.000-02:00",
-//                           "openPrice":0.57,
-//                           "highPrice":0.97,
-//                           "lowPrice":0.50,
-//                           "closePrice":0.82,
-//                           "tradedVolume":44492200,
-//                           "trades":14291,
-//                           "strikePrice":8.61,
-//                           "exerciseDate":"2015-01-19T18:00:00.000-02:00"}
-//                          """
-//    val expectedMongoDocs = List(Document(stockQuoteJson), Document(optionQuoteJson))
-//
-//    val mongoDocs = Serialization.serializeQuotesAsMongoDocuments(Stream(StockQuoteSample, OptionQuoteSample))
-//
-//    assert(mongoDocs == expectedMongoDocs)
-//  }
-//
-//  test("correctly serializes initial date") {
-//    val initialDate = buildDate(2015,10,9)
-//
-//    val serializedDate = Serialization.serializeDate(initialDate)
-//
-//    assert(serializedDate == "2015-10-09T18:00:00.000-03:00")
-//  }
 
 }
