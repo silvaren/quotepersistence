@@ -10,7 +10,7 @@ import org.mongodb.scala.bson.collection.immutable.Document
 
 object Serialization {
 
-  private[this] lazy val gson: Gson = {
+  lazy val gson: Gson = {
     val gsonBuilder = Converters.registerDateTime(new GsonBuilder())
     val bigDecimalAdapter = new TypeAdapter[BigDecimal] {
       override def write(out: JsonWriter, value: BigDecimal): Unit = {
