@@ -1,7 +1,7 @@
 package io.github.silvaren.quotepersistence
 
 import io.github.silvaren.quoteparser.Quote
-import io.github.silvaren.quotepersistence.FileScanner.DbConfig
+import io.github.silvaren.quotepersistence.ParametersLoader.DbConfig
 import org.joda.time.DateTime
 import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._

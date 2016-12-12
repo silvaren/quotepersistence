@@ -5,7 +5,7 @@ import de.flapdoodle.embed.mongo.distribution.Version
 import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
 import de.flapdoodle.embed.process.runtime.Network
 import io.github.silvaren.quoteparser.{OptionQuote, StockQuote}
-import io.github.silvaren.quotepersistence.FileScanner.DbConfig
+import io.github.silvaren.quotepersistence.ParametersLoader.DbConfig
 import org.joda.time.{DateTime, DateTimeZone}
 import org.junit.runner.RunWith
 import org.mongodb.scala.MongoClient
