@@ -42,11 +42,15 @@ object FileScanner {
     QuotePersistence.disconnectFromQuoteDb(quoteDb)
   }
 
-  def main(args: Array[String]): Unit = {
-    val source = scala.io.Source.fromFile(args(0))
+  def loadParametersFile(filePath: String): Parameters = {
+    val source = scala.io.Source.fromFile(filePath)
     val lines = try source.mkString finally source.close()
     val gson = new GsonBuilder().create()
-    val parameters = gson.fromJson(lines, classOf[Parameters])
+    gson.fromJson(lines, classOf[Parameters])
+  }
+
+  def main(args: Array[String]): Unit = {
+    val parameters = loadParametersFile(args(0))
     parseAllFiles(parameters)
   }
 
