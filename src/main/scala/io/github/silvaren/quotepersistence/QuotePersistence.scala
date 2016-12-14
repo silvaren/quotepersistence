@@ -5,9 +5,12 @@ import io.github.silvaren.quotepersistence.ParametersLoader.DbConfig
 import org.joda.time.DateTime
 import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._
+import org.mongodb.scala.model.{IndexOptions, Indexes}
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
-import scala.concurrent.Promise
+import scala.concurrent.{Future, Promise}
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object QuotePersistence {
 
@@ -16,20 +19,27 @@ object QuotePersistence {
 
   case class QuoteDb(mongoClient: MongoClient, collection: MongoCollection[MongoDocument])
 
-  def connectToQuoteDb(dbConfig: DbConfig): QuoteDb = {
+  def connectToQuoteDb(dbConfig: DbConfig): Future[QuoteDb] = {
     val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:${dbConfig.port}")
     val database = mongoClient.getDatabase(dbConfig.dbName)
     val dbCollection = database.getCollection(dbConfig.collection)
-    QuoteDb(mongoClient, dbCollection)
+    val indexP = Promise[String]
+    dbCollection.createIndex(Indexes.ascending("symbol","date"), new IndexOptions().unique(true)).subscribe(
+      new Observer[String] {
+        override def onError(e: Throwable) = indexP.failure(e)
+        override def onComplete() = indexP.success("Index completed!")
+        override def onNext(result: String) = println(result)
+      })
+    indexP.future.map(_ => QuoteDb(mongoClient, dbCollection))
   }
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
-  def insertQuotes(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Promise[String]] = {
+  def insertQuotes(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Future[String]] = {
     persistToDatabaseCollection(quotes, quoteDb.collection)
   }
 
-  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Promise[Seq[Quote]] = {
+  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
     val p = Promise[Seq[Quote]]()
     val quoteSeq = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
     quoteDb.collection.find(and(equal("symbol", symbol),gt("date",
@@ -39,11 +49,11 @@ object QuotePersistence {
         override def onError(e: Throwable): Unit = p.failure(e)
         override def onComplete(): Unit = p.success(quoteSeq.toSeq)
       })
-    p
+    p.future
   }
 
   private[this] def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
-                      acc: Seq[Promise[String]]): Seq[Promise[String]] = {
+                                    acc: Seq[Future[String]]): Seq[Future[String]] = {
     val quoteDocsPiece = quoteDocs.take(BatchSize)
     if (quoteDocsPiece.size > 0) {
       val p = Promise[String]()
@@ -52,13 +62,13 @@ object QuotePersistence {
         override def onError(e: Throwable): Unit = p.failure(e)
         override def onComplete(): Unit = p.success("Success!")
       })
-      insertInBatches(quoteDocs.drop(BatchSize), dbCollection, p +: acc)
+      insertInBatches(quoteDocs.drop(BatchSize), dbCollection, p.future +: acc)
     } else
       acc
   }
 
   private[this] def persistToDatabaseCollection(quotes: => Stream[Quote], dbCollection: MongoCollection[MongoDocument]):
-  Seq[Promise[String]] = {
+  Seq[Future[String]] = {
     def quoteDocs = Serialization.serializeQuotesAsMongoDocuments(quotes)
     insertInBatches(quoteDocs, dbCollection, Seq())
   }
