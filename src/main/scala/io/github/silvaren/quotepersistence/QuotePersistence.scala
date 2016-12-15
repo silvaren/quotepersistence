@@ -9,7 +9,6 @@ import org.mongodb.scala.model.{IndexOptions, Indexes}
 import org.mongodb.scala.{Completed, MongoClient, MongoCollection, Observer}
 
 import scala.concurrent.{Future, Promise}
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object QuotePersistence {
@@ -39,17 +38,35 @@ object QuotePersistence {
     persistToDatabaseCollection(quotes, quoteDb.collection)
   }
 
-  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
-    val p = Promise[Seq[Quote]]()
+  def lastQuoteDate(symbol: String, quoteDb: QuoteDb): Future[DateTime] = {
+    val lastQuoteQueryP = Promise[Seq[Quote]]()
+    val lastQuotes = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
+    quoteDb.collection.find(equal("symbol", symbol))subscribe (
+      new Observer[Document] {
+        override def onNext(result: Document): Unit = lastQuotes += Serialization.mapToQuoteObj(result)
+        override def onError(e: Throwable): Unit = lastQuoteQueryP.failure(e)
+        override def onComplete(): Unit = lastQuoteQueryP.success(lastQuotes.toSeq)
+      })
+    implicit def dateTimeOrdering: Ordering[DateTime] = Ordering.fromLessThan(_ isBefore _)
+    val sortedQuotes = lastQuoteQueryP.future.map( quotes => quotes.sortBy(_.date))
+    sortedQuotes.map( quotes => quotes.last.date)
+  }
+
+  def quoteQuery(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
+    val quoteQueryP = Promise[Seq[Quote]]()
     val quoteSeq = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
     quoteDb.collection.find(and(equal("symbol", symbol),gt("date",
       Serialization.serializeDate(initialDate)))).subscribe (
       new Observer[Document] {
         override def onNext(result: Document): Unit = quoteSeq += Serialization.mapToQuoteObj(result)
-        override def onError(e: Throwable): Unit = p.failure(e)
-        override def onComplete(): Unit = p.success(quoteSeq.toSeq)
+        override def onError(e: Throwable): Unit = quoteQueryP.failure(e)
+        override def onComplete(): Unit = quoteQueryP.success(quoteSeq.toSeq)
       })
-    p.future
+    quoteQueryP.future
+  }
+
+  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
+    lastQuoteDate(symbol, quoteDb).flatMap( date => {println(date);quoteQuery(symbol, initialDate, quoteDb)})
   }
 
   private[this] def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
