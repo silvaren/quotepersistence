@@ -34,6 +34,9 @@ object QuotePersistence {
 
   def disconnectFromQuoteDb(quoteDb: QuoteDb): Unit = quoteDb.mongoClient.close()
 
+  def insertQuoteStreamSequence(quoteSeqs: Seq[Stream[Quote]], quoteDb: QuoteDb): Future[Seq[String]]=
+    Future.sequence(quoteSeqs.flatMap(quotes => QuotePersistence.insertQuotes(quotes, quoteDb)))
+
   def insertQuotes(quotes: => Stream[Quote], quoteDb: QuoteDb): Seq[Future[String]] = {
     persistToDatabaseCollection(quotes, quoteDb.collection)
   }
