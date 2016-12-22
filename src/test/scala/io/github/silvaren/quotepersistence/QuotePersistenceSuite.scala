@@ -66,7 +66,7 @@ class QuotePersistenceSuite extends AsyncFunSuite {
     val quoteSeqs = Seq(Stream(StockQuoteSample, OptionQuoteSample))
     quoteDb.flatMap(
       db => QuotePersistence.insertQuoteStreamSequence(quoteSeqs, db).flatMap(
-        _ => QuotePersistence.retrieveQuotes("PETR4", buildDate(2015, 1, 1), db)
+        _ => QuotePersistence.findQuotesFromInitialDate("PETR4", buildDate(2015, 1, 1), db)
               .flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))))
   }
 

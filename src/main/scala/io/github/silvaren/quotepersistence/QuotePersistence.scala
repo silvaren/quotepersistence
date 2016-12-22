@@ -55,7 +55,7 @@ object QuotePersistence {
     sortedQuotes.map( quotes => quotes.last.date)
   }
 
-  def quoteQuery(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
+  def findQuotesFromInitialDate(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
     val quoteQueryP = Promise[Seq[Quote]]()
     val quoteSeq = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
     quoteDb.collection.find(and(equal("symbol", symbol),gt("date",
@@ -68,8 +68,11 @@ object QuotePersistence {
     quoteQueryP.future
   }
 
-  def retrieveQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
-    lastQuoteDate(symbol, quoteDb).flatMap( date => {println(date);quoteQuery(symbol, initialDate, quoteDb)})
+  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
+    lastQuoteDate(symbol, quoteDb).flatMap( date => {
+      println(date)
+      findQuotesFromInitialDate(symbol, initialDate, quoteDb)
+    })
   }
 
   private[this] def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
