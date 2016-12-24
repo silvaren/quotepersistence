@@ -4,38 +4,16 @@ import de.flapdoodle.embed.mongo.config.{MongodConfigBuilder, Net}
 import de.flapdoodle.embed.mongo.distribution.Version
 import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
 import de.flapdoodle.embed.process.runtime.Network
-import io.github.silvaren.quoteparser.{OptionQuote, Quote, StockQuote}
 import io.github.silvaren.quotepersistence.ParametersLoader.DbConfig
-import io.github.silvaren.quotepersistence.QuotePersistence.QuoteDb
-import org.joda.time.{DateTime, DateTimeZone}
 import org.junit.runner.RunWith
 import org.mongodb.scala.MongoClient
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{AsyncFunSuite, FutureOutcome}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 
 @RunWith(classOf[JUnitRunner])
 class QuotePersistenceSuite extends AsyncFunSuite {
-
-  val StockQuoteSample = StockQuote("PETR4", buildDate(2015, 1, 2), BigDecimal("9.99"), BigDecimal("9.99"),
-    BigDecimal("9.36"), BigDecimal("9.36"), 48837200, 39738)
-
-  val OptionQuoteSample = OptionQuote("PETRA10", buildDate(2015, 1, 8), BigDecimal("0.57"), BigDecimal("0.97"),
-    BigDecimal("0.50"), BigDecimal("0.82"), 44492200, 14291, BigDecimal("8.61"), buildDate(2015, 1, 19))
-
-  def buildDate(year: Int, month: Int, day: Int): DateTime = {
-    val d = new DateTime()
-    d.withZone(DateTimeZone.forID("America/Sao_Paulo"))
-      .withYear(year)
-      .withMonthOfYear(month)
-      .withDayOfMonth(day)
-      .withHourOfDay(18)
-      .withMinuteOfHour(0)
-      .withSecondOfMinute(0)
-      .withMillisOfSecond(0)
-  }
 
   private[this] val starter = MongodStarter.getDefaultInstance()
 
@@ -63,11 +41,11 @@ class QuotePersistenceSuite extends AsyncFunSuite {
   test("inserts and retrieves quotes to mongo") {
     val dbConfig = DbConfig(12345, "quotedbtest", "test")
     val quoteDb = QuotePersistence.connectToQuoteDb(dbConfig)
-    val quoteSeqs = Seq(Stream(StockQuoteSample, OptionQuoteSample))
+    val quoteSeqs = Seq(Stream(Util.StockQuoteSample, Util.OptionQuoteSample))
     quoteDb.flatMap(
       db => QuotePersistence.insertQuoteStreamSequence(quoteSeqs, db).flatMap(
-        _ => QuotePersistence.findQuotesFromInitialDate("PETR4", buildDate(2015, 1, 1), db)
-              .flatMap( quotes => assert(quotes == Seq(StockQuoteSample)))))
+        _ => QuotePersistence.findQuotesFromInitialDate("PETR4", Util.buildDate(2015, 1, 1), db)
+              .flatMap( quotes => assert(quotes == Seq(Util.StockQuoteSample)))))
   }
 
 }

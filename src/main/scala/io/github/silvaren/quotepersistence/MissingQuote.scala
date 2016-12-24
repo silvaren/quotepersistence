@@ -16,7 +16,8 @@ object MissingQuote {
     val missingDays = iterate(initialTime, Seq())
     val missingMonths = missingDays.foldLeft(Set[YearMonth]())(
       (acc, day) => acc + YearMonth(day.year().get(), day.monthOfYear().get()))
-    missingMonths
+    val missingYears = missingMonths.foldLeft(Set[Int]())((acc, yearMonth) => acc + yearMonth.year)
+    (missingYears, missingMonths, missingDays)
   }
 
 }
