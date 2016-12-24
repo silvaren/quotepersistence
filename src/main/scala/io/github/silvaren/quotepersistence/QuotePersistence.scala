@@ -71,6 +71,7 @@ object QuotePersistence {
   def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
     lastQuoteDate(symbol, quoteDb).flatMap( date => {
       println(date)
+      println(MissingQuote.missingDateMap(date))
       findQuotesFromInitialDate(symbol, initialDate, quoteDb)
     })
   }
