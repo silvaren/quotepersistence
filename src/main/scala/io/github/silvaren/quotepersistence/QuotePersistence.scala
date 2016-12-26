@@ -68,13 +68,6 @@ object QuotePersistence {
     quoteQueryP.future
   }
 
-  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
-    lastQuoteDate(symbol, quoteDb).flatMap( date => {
-      println(date)
-      findQuotesFromInitialDate(symbol, initialDate, quoteDb)
-    })
-  }
-
   private[this] def insertInBatches(quoteDocs: => Stream[Document], dbCollection: MongoCollection[MongoDocument],
                                     acc: Seq[Future[String]]): Seq[Future[String]] = {
     val quoteDocsPiece = quoteDocs.take(BatchSize)

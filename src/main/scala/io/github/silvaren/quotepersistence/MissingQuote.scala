@@ -11,7 +11,7 @@ object MissingQuote {
   def isWeekDay(date: DateTime): Boolean =
     date.dayOfWeek().get() != DateTimeConstants.SATURDAY && date.dayOfWeek().get != DateTimeConstants.SUNDAY
 
-  def missingDateMap(initialTime: DateTime, finalTime: DateTime): MissingDates = {
+  def gatherMissingDates(initialTime: DateTime, finalTime: DateTime): MissingDates = {
     def iterate(date: DateTime, acc: Seq[DateTime]): Seq[DateTime] = {
       if (date isBefore finalTime)
         iterate(date.plusDays(1), acc :+ date)
