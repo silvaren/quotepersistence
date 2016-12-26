@@ -1,23 +1,28 @@
 package io.github.silvaren.quotepersistence
 
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, DateTimeConstants}
 
 object MissingQuote {
 
+  case class MissingDates(years: Set[Int], months: Set[YearMonth], days: Seq[DateTime])
+
   case class YearMonth(year: Int, month: Int)
 
-  def missingDateMap(initialTime: DateTime) = {
+  def isWeekDay(date: DateTime): Boolean =
+    date.dayOfWeek().get() != DateTimeConstants.SATURDAY && date.dayOfWeek().get != DateTimeConstants.SUNDAY
+
+  def missingDateMap(initialTime: DateTime, finalTime: DateTime): MissingDates = {
     def iterate(date: DateTime, acc: Seq[DateTime]): Seq[DateTime] = {
-      if (date isBefore DateTime.now)
+      if (date isBefore finalTime)
         iterate(date.plusDays(1), acc :+ date)
       else
         acc
     }
-    val missingDays = iterate(initialTime, Seq())
+    val missingDays = iterate(initialTime, Seq()).filter(d => isWeekDay(d))
     val missingMonths = missingDays.foldLeft(Set[YearMonth]())(
       (acc, day) => acc + YearMonth(day.year().get(), day.monthOfYear().get()))
     val missingYears = missingMonths.foldLeft(Set[Int]())((acc, yearMonth) => acc + yearMonth.year)
-    (missingYears, missingMonths, missingDays)
+    MissingDates(missingYears, missingMonths, missingDays)
   }
 
 }

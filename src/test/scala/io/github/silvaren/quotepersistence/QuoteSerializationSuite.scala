@@ -51,9 +51,4 @@ class QuoteSerializationSuite extends FunSuite {
     assert(serializedDate == "2015-10-09T18:00:00.000-03:00")
   }
 
-  test("year month") {
-    println(MissingQuote.missingDateMap(Util.buildDate(2015, 12, 30)))
-    assert(false)
-  }
-
 }
