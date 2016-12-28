@@ -44,7 +44,7 @@ object QuotePersistence {
   def lastQuoteDate(symbol: String, quoteDb: QuoteDb): Future[DateTime] = {
     val lastQuoteQueryP = Promise[Seq[Quote]]()
     val lastQuotes = scala.collection.mutable.ListBuffer[Quote]() // breaking immutability :(
-    quoteDb.collection.find(equal("symbol", symbol))subscribe (
+    quoteDb.collection.find(equal("symbol", symbol)).subscribe(
       new Observer[Document] {
         override def onNext(result: Document): Unit = lastQuotes += Serialization.mapToQuoteObj(result)
         override def onError(e: Throwable): Unit = lastQuoteQueryP.failure(e)
