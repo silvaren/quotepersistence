@@ -1,5 +1,8 @@
 package io.github.silvaren.quotepersistence
 
+import java.io.{File, FileInputStream}
+
+import io.github.silvaren.quoteparser.QuoteParser
 import io.github.silvaren.quotepersistence.MissingQuote.YearMonth
 import org.joda.time.DateTimeConstants
 import org.junit.runner.RunWith
@@ -36,5 +39,4 @@ class MissingQuoteSuite extends FunSuite {
   test("previous year is preloaded check works not ok when it is not preloaded") {
     assert(!QuoteSync.previousYearIsPreloaded(Util.buildDate(2015, 12, 28), Util.buildDate(2016, 8, 18)))
   }
-
 }

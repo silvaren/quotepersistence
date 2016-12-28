@@ -26,9 +26,9 @@ object FileScanner {
     def quoteSeqs = fStreams.map(fStream => QuoteParser.parse(fStream, parameters.selectedMarkets.toSet,
       parameters.selectedSymbols.toSet))
     val quoteDbF = QuotePersistence.connectToQuoteDb(parameters.dbConfig)
-    val insertPromisesF = quoteDbF.map(
+    val insertFutures = quoteDbF.map(
       quoteDb => quoteSeqs.flatMap(quotes => QuotePersistence.insertQuotes(quotes, quoteDb)))
-    val insertFutureSequence = insertPromisesF.flatMap(insertFs => Future.sequence(insertFs))
+    val insertFutureSequence = insertFutures.flatMap(insertFs => Future.sequence(insertFs))
     val disconnectF = insertFutureSequence.map(
       _ => quoteDbF.foreach(quoteDb => QuotePersistence.disconnectFromQuoteDb(quoteDb)))
     Await.result(disconnectF, Duration.Inf)

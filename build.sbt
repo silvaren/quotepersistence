@@ -14,6 +14,7 @@ libraryDependencies += "io.github.silvaren" % "quoteparser" % "1.0"
 libraryDependencies += "org.mongodb.scala" %% "mongo-scala-driver" % "1.1.1"
 libraryDependencies += "com.google.code.gson" % "gson" % "2.8.0"
 libraryDependencies += "com.fatboyindustrial.gson-jodatime-serialisers" % "gson-jodatime-serialisers" % "1.4.0"
+libraryDependencies += "net.lingala.zip4j" % "zip4j" % "1.3.2"
 
 libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test->default"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test"
