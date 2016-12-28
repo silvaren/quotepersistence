@@ -55,20 +55,30 @@ object QuoteSync {
   def dailyFileNameForYear(year: Int, month: Int, day: Int, fileNamePrefix: String): String =
     fileNamePrefix + s"D$year$month$day"
 
+  def insertRemoteQuoteFile(fileName: String, quoteDb: QuoteDb, parameters: Parameters): Future[Seq[String]] =
+    downloadQuoteFile(parameters.baseUrl, parameters.quoteDir, fileName)
+      .map(is => QuoteParser.parse(is, parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet))
+      .flatMap(quoteStream => Future.sequence(QuotePersistence.insertQuotes(quoteStream, quoteDb)))
+
   def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb,
                             parameters: Parameters): Future[Seq[Quote]] = {
     QuotePersistence.lastQuoteDate(symbol, quoteDb).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
       val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1))
-      if (shouldDownloadAnnualFile(missingDates)) {
-        val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
-        val downloadedIS = downloadQuoteFile(parameters.baseUrl, parameters.quoteDir, annualFileName)
-          .map(is => QuoteParser.parse(is, parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet))
-          .flatMap(quoteStream => Future.sequence(QuotePersistence.insertQuotes(quoteStream, quoteDb)))
-      } else {
-        // TODO: process missing daily files
+      val insertRemoteQuotesFuture: Future[Seq[String]] = {
+        if (shouldDownloadAnnualFile(missingDates)) {
+          val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
+          insertRemoteQuoteFile(annualFileName, quoteDb, parameters)
+        } else {
+          val fileNames = missingDates.days
+            .map(d => dailyFileNameForYear(d.year().get(), d.monthOfYear().get(),
+              d.dayOfMonth().get(), parameters.fileNamePrefix))
+          // TODO: filter out weekends and holidays
+          Future.sequence(fileNames.map(fileName => insertRemoteQuoteFile(fileName, quoteDb, parameters)))
+            .map(nestedSeq => nestedSeq.flatten)
+        }
       }
-      QuotePersistence.findQuotesFromInitialDate(symbol, initialDate, quoteDb)
+      insertRemoteQuotesFuture.flatMap( _ => QuotePersistence.findQuotesFromInitialDate(symbol, initialDate, quoteDb))
     })
   }
 
