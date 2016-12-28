@@ -32,11 +32,4 @@ class MissingQuoteSuite extends FunSuite {
       d.dayOfWeek().get() === DateTimeConstants.SUNDAY))
   }
 
-  test("previous year preload check ok when it is preloaded") {
-    assert(QuoteSync.previousYearIsPreloaded(Util.buildDate(2015, 12, 30), Util.buildDate(2016, 8, 18)))
-  }
-
-  test("previous year is preloaded check works not ok when it is not preloaded") {
-    assert(!QuoteSync.previousYearIsPreloaded(Util.buildDate(2015, 12, 28), Util.buildDate(2016, 8, 18)))
-  }
 }

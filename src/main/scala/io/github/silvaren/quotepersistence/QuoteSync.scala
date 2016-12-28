@@ -2,11 +2,11 @@ package io.github.silvaren.quotepersistence
 
 import java.io.{File, FileInputStream, FileOutputStream, InputStream}
 import java.net.URL
-import java.nio.channels.{Channels, ReadableByteChannel}
-import java.util.zip.ZipInputStream
+import java.nio.channels.Channels
 
 import io.github.silvaren.quoteparser.{Quote, QuoteParser}
 import io.github.silvaren.quotepersistence.MissingQuote.MissingDates
+import io.github.silvaren.quotepersistence.ParametersLoader.Parameters
 import io.github.silvaren.quotepersistence.QuotePersistence.QuoteDb
 import net.lingala.zip4j.core.ZipFile
 import net.lingala.zip4j.exception.ZipException
@@ -14,14 +14,13 @@ import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.io.{Codec, Source}
 
 object QuoteSync {
 
   def previousYearIsPreloaded(lastDate: DateTime, nowDate: DateTime = DateTime.now()): Boolean =
-    (lastDate.year() == nowDate.year() ||
+    lastDate.year() == nowDate.year() ||
       (lastDate.year() == nowDate.plusYears(-1).year() &&
-        lastDate.monthOfYear().get() == 12 && lastDate.dayOfMonth().get() >= 29))
+        lastDate.monthOfYear().get() == 12 && lastDate.dayOfMonth().get() >= 29)
 
   def shouldDownloadAnnualFile(missingDates: MissingDates): Boolean = missingDates.days.size > 30
 
@@ -41,17 +40,27 @@ object QuoteSync {
     fos.getChannel().transferFrom(rbc, 0, Long.MaxValue)
   }
 
-  def downloadAnnualFile(year: Int, url: String, dst: String) = {
-    downloadFile(url, dst)
-    unzip(new File(dst), dst)
-    val quoteTxtIS = new FileInputStream(dst)
-    QuoteParser.parse(quoteTxtIS, Set(10,70,80), Set("PETR", "VALE")).foreach(q => println(q))
+  def downloadQuoteFile(baseUrl: String, quoteDir: String, fileName: String): InputStream = {
+    val url = baseUrl + fileName
+    val downloadedFilePath = quoteDir + File.separator + fileName + ".ZIP"
+    downloadFile(url, downloadedFilePath)
+    unzip(new File(downloadedFilePath), quoteDir)
+    new FileInputStream(quoteDir + File.separator + fileName + ".TXT")
   }
 
-  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb): Future[Seq[Quote]] = {
+  def annualFileNameForYear(year: Int, fileNamePrefix: String) = fileNamePrefix + s"A$year"
+
+  def dailyFileNameForYear(year: Int, month: Int, day: Int, fileNamePrefix: String) =
+    fileNamePrefix + s"D$year$month$day"
+
+  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb,
+                            parameters: Parameters): Future[Seq[Quote]] = {
     QuotePersistence.lastQuoteDate(symbol, quoteDb).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
       val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1))
+      if (shouldDownloadAnnualFile(missingDates)) {
+        // TODO: download files
+      }
       QuotePersistence.findQuotesFromInitialDate(symbol, initialDate, quoteDb)
     })
   }
