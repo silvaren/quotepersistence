@@ -5,7 +5,6 @@ import java.net.URL
 import java.nio.channels.Channels
 
 import io.github.silvaren.quoteparser.{Quote, QuoteParser}
-import io.github.silvaren.quotepersistence.MissingQuote.MissingDates
 import io.github.silvaren.quotepersistence.ParametersLoader.Parameters
 import io.github.silvaren.quotepersistence.QuotePersistence.QuoteDb
 import net.lingala.zip4j.core.ZipFile
@@ -22,7 +21,7 @@ object QuoteSync {
       (lastDate.year() == nowDate.plusYears(-1).year() &&
         lastDate.monthOfYear().get() == 12 && lastDate.dayOfMonth().get() >= 29)
 
-  def shouldDownloadAnnualFile(missingDates: MissingDates): Boolean = missingDates.days.size > 30
+  def shouldDownloadAnnualFile(missingDates: Seq[DateTime]): Boolean = missingDates.size > 30
 
   def unzip(source: File, dst: String) = {
     try {
@@ -64,16 +63,15 @@ object QuoteSync {
                             parameters: Parameters): Future[Seq[Quote]] = {
     QuotePersistence.lastQuoteDate(symbol, quoteDb).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
-      val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1))
+      val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1), Set())
       val insertRemoteQuotesFuture: Future[Seq[String]] = {
         if (shouldDownloadAnnualFile(missingDates)) {
           val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
           insertRemoteQuoteFile(annualFileName, quoteDb, parameters)
         } else {
-          val fileNames = missingDates.days
+          val fileNames = missingDates
             .map(d => dailyFileNameForYear(d.year().get(), d.monthOfYear().get(),
               d.dayOfMonth().get(), parameters.fileNamePrefix))
-          // TODO: filter out weekends and holidays
           Future.sequence(fileNames.map(fileName => insertRemoteQuoteFile(fileName, quoteDb, parameters)))
             .map(nestedSeq => nestedSeq.flatten)
         }
