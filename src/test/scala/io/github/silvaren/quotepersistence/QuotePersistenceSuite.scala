@@ -40,11 +40,11 @@ class QuotePersistenceSuite extends AsyncFunSuite {
 
   test("inserts and retrieves quotes to mongo") {
     val dbConfig = DbConfig(12345, "quotedbtest", "test")
-    val quoteDb = QuotePersistence.connectToQuoteDb(dbConfig)
+    val quotePersistence = QuotePersistenceFactory.connectToQuoteDb(dbConfig)
     val quoteSeqs = Seq(Stream(Util.StockQuoteSample, Util.OptionQuoteSample))
-    quoteDb.flatMap(
-      db => QuotePersistence.insertQuoteStreamSequence(quoteSeqs, db).flatMap(
-        _ => QuotePersistence.findQuotesFromInitialDate("PETR4", Util.buildDate(2015, 1, 1), db)
+    quotePersistence.flatMap(
+      persistence => persistence.insertQuoteStreamSequence(quoteSeqs).flatMap(
+        _ => persistence.findQuotesFromInitialDate("PETR4", Util.buildDate(2015, 1, 1))
               .flatMap( quotes => assert(quotes == Seq(Util.StockQuoteSample)))))
   }
 

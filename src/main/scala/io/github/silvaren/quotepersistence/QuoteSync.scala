@@ -6,7 +6,6 @@ import java.nio.channels.Channels
 
 import io.github.silvaren.quoteparser.{Quote, QuoteParser}
 import io.github.silvaren.quotepersistence.ParametersLoader.Parameters
-import io.github.silvaren.quotepersistence.QuotePersistence.QuoteDb
 import net.lingala.zip4j.core.ZipFile
 import net.lingala.zip4j.exception.ZipException
 import org.joda.time.DateTime
@@ -54,29 +53,30 @@ object QuoteSync {
   def dailyFileNameForYear(year: Int, month: Int, day: Int, fileNamePrefix: String): String =
     fileNamePrefix + s"D$year$month$day"
 
-  def insertRemoteQuoteFile(fileName: String, quoteDb: QuoteDb, parameters: Parameters): Future[Seq[String]] =
+  def insertRemoteQuoteFile(fileName: String, parameters: Parameters,
+                            quotePersistence: QuotePersistence): Future[Seq[String]] =
     downloadQuoteFile(parameters.baseUrl, parameters.quoteDir, fileName)
       .map(is => QuoteParser.parse(is, parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet))
-      .flatMap(quoteStream => Future.sequence(QuotePersistence.insertQuotes(quoteStream, quoteDb)))
+      .flatMap(quoteStream => Future.sequence(quotePersistence.insertQuotes(quoteStream)))
 
   def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb,
-                            parameters: Parameters): Future[Seq[Quote]] = {
-    QuotePersistence.lastQuoteDate(symbol, quoteDb).flatMap( lastPersistedDate => {
+                            parameters: Parameters, quotePersistence: QuotePersistence): Future[Seq[Quote]] = {
+    quotePersistence.lastQuoteDate(symbol).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
       val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1), Set())
       val insertRemoteQuotesFuture: Future[Seq[String]] = {
         if (shouldDownloadAnnualFile(missingDates)) {
           val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
-          insertRemoteQuoteFile(annualFileName, quoteDb, parameters)
+          insertRemoteQuoteFile(annualFileName, parameters, quotePersistence)
         } else {
           val fileNames = missingDates
             .map(d => dailyFileNameForYear(d.year().get(), d.monthOfYear().get(),
               d.dayOfMonth().get(), parameters.fileNamePrefix))
-          Future.sequence(fileNames.map(fileName => insertRemoteQuoteFile(fileName, quoteDb, parameters)))
+          Future.sequence(fileNames.map(fileName => insertRemoteQuoteFile(fileName, parameters, quotePersistence)))
             .map(nestedSeq => nestedSeq.flatten)
         }
       }
-      insertRemoteQuotesFuture.flatMap( _ => QuotePersistence.findQuotesFromInitialDate(symbol, initialDate, quoteDb))
+      insertRemoteQuotesFuture.flatMap( _ => quotePersistence.findQuotesFromInitialDate(symbol, initialDate))
     })
   }
 

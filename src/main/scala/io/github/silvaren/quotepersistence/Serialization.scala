@@ -4,7 +4,6 @@ import com.fatboyindustrial.gsonjodatime.Converters
 import com.google.gson.{Gson, GsonBuilder, TypeAdapter}
 import com.google.gson.stream.{JsonReader, JsonWriter}
 import io.github.silvaren.quoteparser.{OptionQuote, Quote, StockQuote}
-import io.github.silvaren.quotepersistence.QuotePersistence.MongoDocument
 import org.joda.time.DateTime
 import org.mongodb.scala.bson.collection.immutable.Document
 
@@ -30,7 +29,7 @@ object Serialization {
     else
       gson.fromJson(result.toJson(), classOf[StockQuote])
 
-  def serializeQuotesAsMongoDocuments(quotes: => Stream[Quote]): Stream[MongoDocument] = {
+  def serializeQuotesAsMongoDocuments(quotes: => Stream[Quote]): Stream[org.mongodb.scala.Document] = {
     quotes.map(q => Document(gson.toJson(q)))
   }
 
