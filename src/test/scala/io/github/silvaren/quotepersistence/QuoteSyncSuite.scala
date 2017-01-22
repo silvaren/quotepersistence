@@ -1,11 +1,12 @@
 package io.github.silvaren.quotepersistence
 
 import org.junit.runner.RunWith
-import org.scalatest.FunSuite
+import org.scalatest.{AsyncFunSuite, FunSuite}
 import org.scalatest.junit.JUnitRunner
+import org.scalatest.mockito.MockitoSugar
 
 @RunWith(classOf[JUnitRunner])
-class QuoteSyncSuite extends FunSuite {
+class QuoteSyncSuite extends AsyncFunSuite with MockitoSugar {
 
   test("previous year preload check ok when it is preloaded") {
     assert(QuoteSync.previousYearIsPreloaded(Util.buildDate(2015, 12, 30), Util.buildDate(2016, 8, 18)))
