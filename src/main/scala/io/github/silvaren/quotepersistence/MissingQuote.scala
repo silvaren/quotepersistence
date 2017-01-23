@@ -34,7 +34,7 @@ object MissingQuote {
         .filter(d => !holidays.contains(d))
   }
 
-  def loadHolidaysForThisYear(year: Int = DateTime.now().year().get(), quoteDir: String): Set[DateTime] = {
+  def loadHolidaysForThisYear(quoteDir: String, year: Int = DateTime.now().year().get()): Set[DateTime] = {
     val loadedHolidays = HolidaysLoader.loadHolidaysFile(quoteDir + File.separator + "holidays.json")
     assert(loadedHolidays.years.exists(y => y.year == year))
     loadedHolidays.years.find(y => y.year == year)

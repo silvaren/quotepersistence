@@ -59,20 +59,23 @@ object QuoteSync {
       .map(is => QuoteParser.parse(is, parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet))
       .flatMap(quoteStream => Future.sequence(quotePersistence.insertQuotes(quoteStream)))
 
-  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, quoteDb: QuoteDb,
-                            parameters: Parameters, quotePersistence: QuotePersistence): Future[Seq[Quote]] = {
+  def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, parameters: Parameters,
+                            quotePersistence: QuotePersistence,
+                            insertQuoteFn:
+                            (String, Parameters, QuotePersistence) => Future[Seq[String]] = insertRemoteQuoteFile,
+                            holidays: Set[DateTime]): Future[Seq[Quote]] = {
     quotePersistence.lastQuoteDate(symbol).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
-      val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1), Set())
+      val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1), holidays)
       val insertRemoteQuotesFuture: Future[Seq[String]] = {
         if (shouldDownloadAnnualFile(missingDates)) {
           val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
-          insertRemoteQuoteFile(annualFileName, parameters, quotePersistence)
+          insertQuoteFn(annualFileName, parameters, quotePersistence)
         } else {
           val fileNames = missingDates
             .map(d => dailyFileNameForYear(d.year().get(), d.monthOfYear().get(),
               d.dayOfMonth().get(), parameters.fileNamePrefix))
-          Future.sequence(fileNames.map(fileName => insertRemoteQuoteFile(fileName, parameters, quotePersistence)))
+          Future.sequence(fileNames.map(fileName => insertQuoteFn(fileName, parameters, quotePersistence)))
             .map(nestedSeq => nestedSeq.flatten)
         }
       }
