@@ -1,11 +1,15 @@
 package io.github.silvaren.quotepersistence
 
+import java.io.IOException
+
 import org.joda.time.DateTime
 import org.junit.runner.RunWith
 import org.scalatest.AsyncFunSuite
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.mockito.MockitoSugar
 import org.mockito.Mockito._
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.Matchers._
 
 import scala.concurrent.Future
 
@@ -44,6 +48,27 @@ class QuoteSyncSuite extends AsyncFunSuite with MockitoSugar {
     // then
     QuoteSync.retrieveUpdatedQuotes("PETR4", initialDate, parameters, persistenceMock, insertQuoteFnMock,
       Set[DateTime]()).map(quoteSeq => assert(quoteSeq == Seq(Util.StockQuoteSample)))
+  }
+
+  test("should fail from failed insertQuoteFn") {
+    // given
+    val initialDate = Util.buildDate(2016, 12, 15)
+    val parameters = mock[ParametersLoader.Parameters]
+    val persistenceMock = mock[MockableQuotePersistence]
+    def insertQuoteFnMock = (x: String,y: ParametersLoader.Parameters,z: QuotePersistence) =>
+      Future.failed(new IOException())
+    when(parameters.fileNamePrefix).thenReturn("bla")
+    when(persistenceMock.lastQuoteDate("PETR4")).thenReturn(Future.successful(Util.buildDate(2016, 12, 29)))
+    when(persistenceMock.findQuotesFromInitialDate("PETR4", initialDate)).thenReturn(Future.successful(Seq(Util.StockQuoteSample)))
+
+    // when
+    val f = QuoteSync.retrieveUpdatedQuotes("PETR4", initialDate, parameters, persistenceMock, insertQuoteFnMock,
+      Set[DateTime]())
+
+    // then
+    ScalaFutures.whenReady(f.failed) { e =>
+      e shouldBe an [IOException]
+    }
   }
 
 
