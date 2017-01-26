@@ -59,6 +59,14 @@ object QuoteSync {
       .map(is => QuoteParser.parse(is, parameters.selectedMarkets.toSet, parameters.selectedSymbols.toSet))
       .flatMap(quoteStream => Future.sequence(quotePersistence.insertQuotes(quoteStream)))
 
+  def seqFutures[T, U](items: TraversableOnce[T])(yourfunction: T => Future[U]): Future[Seq[U]] = {
+    items.foldLeft(Future.successful[Seq[U]](Seq())) {
+      (f, item) => f.flatMap {
+        x => yourfunction(item).map(_ +: x)
+      }
+    } map (_.reverse)
+  }
+
   def retrieveUpdatedQuotes(symbol: String, initialDate: DateTime, parameters: Parameters,
                             quotePersistence: QuotePersistence,
                             insertQuoteFn:
@@ -67,16 +75,15 @@ object QuoteSync {
     quotePersistence.lastQuoteDate(symbol).flatMap( lastPersistedDate => {
       assert(previousYearIsPreloaded(lastPersistedDate))
       val missingDates = MissingQuote.gatherMissingDates(lastPersistedDate.plusDays(1), holidays)
-      val insertRemoteQuotesFuture: Future[Seq[String]] = {
+      val insertRemoteQuotesFuture: Future[Seq[Seq[String]]] = {
         if (shouldDownloadAnnualFile(missingDates)) {
           val annualFileName = annualFileNameForYear(DateTime.now().year().get(), parameters.fileNamePrefix)
-          insertQuoteFn(annualFileName, parameters, quotePersistence)
+          insertQuoteFn(annualFileName, parameters, quotePersistence).map(stringSeq => Seq(stringSeq))
         } else {
           val fileNames = missingDates
             .map(d => dailyFileNameForYear(d.year().get(), d.monthOfYear().get(),
               d.dayOfMonth().get(), parameters.fileNamePrefix))
-          Future.sequence(fileNames.map(fileName => insertQuoteFn(fileName, parameters, quotePersistence)))
-            .map(nestedSeq => nestedSeq.flatten)
+          seqFutures(fileNames)(fileName => insertQuoteFn(fileName, parameters, quotePersistence))
         }
       }
       insertRemoteQuotesFuture.flatMap( _ => quotePersistence.findQuotesFromInitialDate(symbol, initialDate))
